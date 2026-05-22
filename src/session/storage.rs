@@ -28,8 +28,7 @@ pub(crate) fn config_path() -> PathBuf {
     if let Some(dir) = std::env::var_os("ZS_CONFIG_DIR") {
         return PathBuf::from(dir);
     }
-    let base = dirs::config_dir().unwrap_or_else(|| home_fallback().join(".config"));
-    base.join("zerostack")
+    data_dir()
 }
 
 pub fn save_session(session: &Session) -> anyhow::Result<()> {

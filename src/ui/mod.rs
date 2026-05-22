@@ -3,7 +3,7 @@ mod events;
 pub(crate) mod input;
 mod markdown;
 pub(crate) mod picker;
-mod renderer;
+pub(crate) mod renderer;
 mod slash;
 mod status;
 mod terminal;
@@ -242,6 +242,7 @@ pub async fn run_interactive(
     let mut input = InputEditor::new();
     input.set_monochrome(cli.no_color);
     input.set_prompt_names(context.prompts.keys().cloned().collect());
+    input.set_theme_names(context.themes.keys().cloned().collect());
     if let Some(editor) = &cfg.editor {
         input.set_editor(editor.clone());
     }

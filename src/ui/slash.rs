@@ -796,6 +796,48 @@ pub async fn handle_slash(
                 }
             }
         }
+        "/theme" => {
+            let mut sorted: Vec<&String> = context.themes.keys().collect();
+            sorted.sort();
+            if parts.len() < 2 {
+                if sorted.is_empty() {
+                    renderer.write_line("no themes available", C_AGENT)?;
+                } else {
+                    let current = context.current_theme_name.as_deref().unwrap_or("(none)");
+                    renderer.write_line(
+                        &format!("available themes (current: {}):", current),
+                        C_AGENT,
+                    )?;
+                    for name in &sorted {
+                        renderer.write_line(&format!("  {}", name), C_RESULT)?;
+                    }
+                    renderer.write_line("", C_AGENT)?;
+                    renderer.write_line("usage: /theme <name>  |  /theme default", C_RESULT)?;
+                }
+            } else if parts[1] == "default" {
+                if context.current_theme_name.is_none() {
+                    renderer.write_line("no active theme to clear", C_AGENT)?;
+                } else {
+                    context.current_theme_name = None;
+                    renderer.write_line("theme cleared (using config colors)", C_AGENT)?;
+                }
+            } else {
+                let name = parts[1].trim();
+                if let Some(content) = context.themes.get(name) {
+                    context.current_theme_name = Some(name.to_string());
+                    crate::context::themes::apply(content, renderer);
+                    renderer.write_line(&format!("active theme: {}", name), C_AGENT)?;
+                } else {
+                    renderer.write_line(&format!("unknown theme: '{}'", name), C_ERROR)?;
+                    if !sorted.is_empty() {
+                        renderer.write_line("available themes:", C_AGENT)?;
+                        for t in &sorted {
+                            renderer.write_line(&format!("  {}", t), C_RESULT)?;
+                        }
+                    }
+                }
+            }
+        }
         #[cfg(feature = "git-worktree")]
         "/worktree" => {
             if parts.len() < 2 {
@@ -908,6 +950,15 @@ pub async fn handle_slash(
             }
             Err(e) => {
                 renderer.write_line(&format!("failed to regenerate prompts: {}", e), C_ERROR)?;
+            }
+        },
+        "/regen-themes" => match crate::context::themes::regen() {
+            Ok(()) => {
+                context.themes = crate::context::themes::load();
+                renderer.write_line("default themes regenerated", C_AGENT)?;
+            }
+            Err(e) => {
+                renderer.write_line(&format!("failed to regenerate themes: {}", e), C_ERROR)?;
             }
         },
         "/history" => match crate::session::chat_history::load_history() {
@@ -1044,8 +1095,15 @@ pub async fn handle_slash(
             renderer.write_line("  /prompt                list available prompts", C_RESULT)?;
             renderer.write_line("  /prompt <name>         activate a prompt", C_RESULT)?;
             renderer.write_line("  /prompt default        clear active prompt", C_RESULT)?;
+            renderer.write_line("  /theme                 list available themes", C_RESULT)?;
+            renderer.write_line("  /theme <name>          activate a theme", C_RESULT)?;
+            renderer.write_line("  /theme default         clear active theme", C_RESULT)?;
             renderer.write_line(
                 "  /regen-prompts        restore built-in prompts to global dir",
+                C_RESULT,
+            )?;
+            renderer.write_line(
+                "  /regen-themes         restore built-in themes to config dir",
                 C_RESULT,
             )?;
             #[cfg(feature = "git-worktree")]

@@ -1,12 +1,21 @@
 # Configuration
 
-zerostack reads an optional JSON config file named `config.json` from its config
+zerostack reads an optional JSON config file named `config.json` from its data
 folder:
 
 - If `ZS_CONFIG_DIR` is set: `$ZS_CONFIG_DIR/config.json`
-- Otherwise: the platform config directory joined with `zerostack/config.json`
-  (for example `$XDG_CONFIG_HOME/zerostack/config.json` on Linux)
-- Fallback: `$HOME/.config/zerostack/config.json`
+- Otherwise: if `ZS_DATA_DIR` is set: `$ZS_DATA_DIR/config.json`
+- Otherwise: `~/.local/share/zerostack/config.json`
+
+Prompts and themes are loaded from the same data directory:
+
+- Prompts: `~/.local/share/zerostack/prompts/`
+- Themes: `~/.local/share/zerostack/themes/`
+
+If `ZS_CONFIG_DIR` is set, it overrides the data directory for the config file
+location only (prompts and themes still use `ZS_DATA_DIR` / the default data
+dir). Set `ZS_CONFIG_DIR` when you want the config in a separate path from the
+data files.
 
 All config keys are optional. CLI flags and their environment-backed values
 (such as `ZS_PROVIDER` and `ZS_MODEL`) take precedence where both exist.

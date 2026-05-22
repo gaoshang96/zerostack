@@ -235,7 +235,7 @@ zerostack --acp --acp-host 0.0.0.0 --acp-port 7243
 
 ### ACP config
 
-In `$XDG_CONFIG_HOME/zerostack/config.json`:
+In `~/.local/share/zerostack/config.json`:
 
 ```json
 {
@@ -260,7 +260,7 @@ and API key env vars apply). Without it, zerostack cannot process prompts.
 - Ollama
 
 Custom providers can be configured with any base URL and API key environment
-variable in  `$XDG_CONFIG_HOME/zerostack/config.json`.
+variable in  `~/.local/share/zerostack/config.json`.
 
 ## License
 
