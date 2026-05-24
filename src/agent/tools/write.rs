@@ -37,7 +37,7 @@ impl Tool for WriteTool {
     async fn definition(&self, _prompt: String) -> ToolDefinition {
         ToolDefinition {
             name: "write".to_string(),
-            description: "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories.".to_string(),
+            description: "Create a new file with the given content. Fails if the file already exists — use edit for existing files. Automatically creates parent directories.".to_string(),
             parameters: serde_json::json!({
                 "type": "object",
                 "properties": {
@@ -53,6 +53,12 @@ impl Tool for WriteTool {
         check_perm_path(&self.permission, &self.ask_tx, "write", &args.path).await?;
 
         let path = Path::new(&args.path);
+        if path.exists() {
+            return Err(ToolError::Msg(format!(
+                "File '{}' already exists. Use edit for targeted changes, or delete and recreate if a full rewrite is needed.",
+                args.path
+            )));
+        }
         if let Some(parent) = path.parent() {
             tokio::fs::create_dir_all(parent).await?;
         }
