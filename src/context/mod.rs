@@ -26,6 +26,8 @@ impl ContextFiles {
             self.current_prompt = self.prompts.get(name).cloned();
         }
         self.themes = themes::load();
+        // Reload persisted theme name from disk
+        self.current_theme_name = crate::session::storage::load_theme_name();
     }
 }
 
@@ -39,13 +41,14 @@ pub fn load(no_context_files: bool) -> ContextFiles {
     };
     let prompt_map = prompts::load();
     let theme_map = themes::load();
+    let theme_name = crate::session::storage::load_theme_name();
     ContextFiles {
         agents,
         prompts: prompt_map,
         current_prompt: None,
         current_prompt_name: None,
         themes: theme_map,
-        current_theme_name: None,
+        current_theme_name: theme_name,
     }
 }
 

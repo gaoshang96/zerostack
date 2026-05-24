@@ -801,12 +801,21 @@ pub async fn handle_slash(
                     renderer.write_line("no active theme to clear", C_AGENT)?;
                 } else {
                     context.current_theme_name = None;
+                    let _ = crate::session::storage::save_theme_name(None);
+                    // Re-apply config colors
+                    if let Some(colors) = &cfg.colors {
+                        let chat_bg = colors.chat_background.as_deref().and_then(crate::ui::parse_color);
+                        let input_bg = colors.input_background.as_deref().and_then(crate::ui::parse_color);
+                        let status_bg = colors.status_background.as_deref().and_then(crate::ui::parse_color);
+                        renderer.set_background_colors(chat_bg, input_bg, status_bg);
+                    }
                     renderer.write_line("theme cleared (using config colors)", C_AGENT)?;
                 }
             } else {
                 let name = parts[1].trim();
                 if let Some(content) = context.themes.get(name) {
                     context.current_theme_name = Some(name.to_string());
+                    let _ = crate::session::storage::save_theme_name(Some(name));
                     crate::context::themes::apply(content, renderer);
                     renderer.write_line(&format!("active theme: {}", name), C_AGENT)?;
                 } else {

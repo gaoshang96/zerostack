@@ -282,7 +282,11 @@ pub async fn run_interactive(
 
     let mut renderer = Renderer::new()?;
     renderer.set_monochrome(cli.no_color);
-    if let Some(colors) = &cfg.colors {
+    if let Some(ref theme_name) = context.current_theme_name {
+        if let Some(content) = context.themes.get(theme_name.as_str()) {
+            crate::context::themes::apply(content, &mut renderer);
+        }
+    } else if let Some(colors) = &cfg.colors {
         let chat_bg = colors.chat_background.as_deref().and_then(parse_color);
         let input_bg = colors.input_background.as_deref().and_then(parse_color);
         let status_bg = colors.status_background.as_deref().and_then(parse_color);
