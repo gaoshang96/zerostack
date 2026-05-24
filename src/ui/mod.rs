@@ -126,6 +126,20 @@ fn spawn_event_thread(
     })
 }
 
+/// Lazily initialise the MCP client manager (connects only on first use).
+#[cfg(feature = "mcp")]
+async fn ensure_mcp_manager<'a>(
+    mcp: &'a mut Option<McpClientManager>,
+    cfg: &'a Config,
+) -> Option<&'a McpClientManager> {
+    if mcp.is_none() {
+        if let Some(servers) = &cfg.mcp_servers {
+            *mcp = Some(McpClientManager::connect_all(servers).await);
+        }
+    }
+    mcp.as_ref()
+}
+
 #[allow(clippy::too_many_arguments)]
 pub async fn run_interactive(
     mut client: AnyClient,
@@ -138,9 +152,11 @@ pub async fn run_interactive(
     ask_tx: Option<AskSender>,
     mut ask_rx: Option<AskReceiver>,
     sandbox: Sandbox,
-    #[cfg(feature = "mcp")] mcp_manager: Option<&McpClientManager>,
 ) -> anyhow::Result<()> {
     let _guard = TerminalGuard::new()?;
+
+    #[cfg(feature = "mcp")]
+    let mut mcp_manager: Option<McpClientManager> = None;
 
     let mut renderer = Renderer::new()?;
     renderer.set_monochrome(cli.no_color);
@@ -211,6 +227,8 @@ pub async fn run_interactive(
                 std::env::set_current_dir(&path).ok();
                 session.working_dir = compact_str::CompactString::new(path.to_string_lossy());
                 context.reload();
+                #[cfg(feature = "mcp")]
+                let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
                 let model = client.completion_model(session.model.to_string());
                 agent = Some(
                     crate::provider::build_agent(
@@ -223,7 +241,7 @@ pub async fn run_interactive(
                         sandbox.clone(),
                         reasoning_enabled,
                         #[cfg(feature = "mcp")]
-                        mcp_manager,
+                        mcp_ref,
                     )
                     .await,
                 );
@@ -246,6 +264,8 @@ pub async fn run_interactive(
                 std::env::set_current_dir(&path).ok();
                 session.working_dir = compact_str::CompactString::new(path.to_string_lossy());
                 context.reload();
+                #[cfg(feature = "mcp")]
+                let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
                 let model = client.completion_model(session.model.to_string());
                 agent = Some(
                     crate::provider::build_agent(
@@ -258,7 +278,7 @@ pub async fn run_interactive(
                         sandbox.clone(),
                         reasoning_enabled,
                         #[cfg(feature = "mcp")]
-                        mcp_manager,
+                        mcp_ref,
                     )
                     .await,
                 );
@@ -440,7 +460,9 @@ pub async fn run_interactive(
                                     renderer.write_line(&format!("> {}", safe_line), Color::Green)?;
                                 }
                                 renderer.write_line("", Color::White)?;
-                                let result = handle_slash(&text, &mut agent, &mut client, &mut renderer, session, cli, cfg, context, &mut show_reasoning, &mut reasoning_enabled, &mut is_running, &mut input, &permission, &ask_tx, &mut todo_tools_enabled, &sandbox, #[cfg(feature = "loop")] &mut loop_state, #[cfg(feature = "mcp")] mcp_manager).await;
+                                #[cfg(feature = "mcp")]
+                                let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
+                                let result = handle_slash(&text, &mut agent, &mut client, &mut renderer, session, cli, cfg, context, &mut show_reasoning, &mut reasoning_enabled, &mut is_running, &mut input, &permission, &ask_tx, &mut todo_tools_enabled, &sandbox, #[cfg(feature = "loop")] &mut loop_state, #[cfg(feature = "mcp")] mcp_ref).await;
                                 match result {
                                 Err(e) if e.to_string().starts_with("DEFER_COMPRESS:") => {
                                     let err_msg = e.to_string();
@@ -448,12 +470,14 @@ pub async fn run_interactive(
                                         let s = s.trim();
                                         if s.is_empty() || s == "(none)" { None } else { Some(s.to_string()) }
                                     });
+                                        #[cfg(feature = "mcp")]
+                                        let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
                                         let compress_result = handle_compress(
                                             instructions.as_deref(),
                                             &mut agent, &mut client, &mut renderer, session, cli, cfg, context,
                                             reasoning_enabled,
                                             &permission, &ask_tx, &sandbox,
-                                            #[cfg(feature = "mcp")] mcp_manager,
+                                            #[cfg(feature = "mcp")] mcp_ref,
                                         ).await;
                                         if let Err(e) = compress_result {
                                             renderer.write_line(&format!("compress error: {}", e), C_ERROR)?;
@@ -479,10 +503,12 @@ pub async fn run_interactive(
                                             );
                                             session.add_message(MessageRole::User, &prompt);
                                             let history = crate::agent::runner::convert_history(session);
+                                            #[cfg(feature = "mcp")]
+                                            let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
                                             ensure_agent(
                                                 &mut agent, &client, session, cli, cfg, context,
                                                 &permission, &ask_tx, &sandbox, reasoning_enabled,
-                                                #[cfg(feature = "mcp")] mcp_manager,
+                                                #[cfg(feature = "mcp")] mcp_ref,
                                             ).await;
                                             let runner = agent.as_ref().unwrap().clone().spawn_runner(prompt, history);
                                             agent_rx = Some(runner.event_rx);
@@ -500,6 +526,8 @@ pub async fn run_interactive(
                                                 .map_err(|e| anyhow::anyhow!("failed to change directory: {}", e))?;
                                             session.working_dir = compact_str::CompactString::new(main_path);
                                             context.reload();
+                                            #[cfg(feature = "mcp")]
+                                            let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
                                             let model = client.completion_model(session.model.to_string());
                                             agent = Some(crate::provider::build_agent(
                                                 model,
@@ -510,7 +538,7 @@ pub async fn run_interactive(
                                                 ask_tx.clone(),
                                                 sandbox.clone(),
                                                 reasoning_enabled,
-                                                #[cfg(feature = "mcp")] mcp_manager,
+                                                #[cfg(feature = "mcp")] mcp_ref,
                                             ).await);
                                             render_session(&mut renderer, session, cli, cfg, context)?;
                                             renderer.write_line(
@@ -540,10 +568,12 @@ pub async fn run_interactive(
                                         {
                                             ls.iteration = 1;
                                             let prompt = ls.build_prompt();
+                                            #[cfg(feature = "mcp")]
+                                            let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
                                             ensure_agent(
                                                 &mut agent, &client, session, cli, cfg, context,
                                                 &permission, &ask_tx, &sandbox, reasoning_enabled,
-                                                #[cfg(feature = "mcp")] mcp_manager,
+                                                #[cfg(feature = "mcp")] mcp_ref,
                                             ).await;
                                             let runner = agent.as_ref().unwrap().clone().spawn_runner(prompt, Vec::new());
                                             agent_rx = Some(runner.event_rx);
@@ -567,10 +597,12 @@ pub async fn run_interactive(
                                 }
                                 renderer.write_line("", Color::White)?;
 
+                                #[cfg(feature = "mcp")]
+                                let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
                                 ensure_agent(
                                     &mut agent, &client, session, cli, cfg, context,
                                     &permission, &ask_tx, &sandbox, reasoning_enabled,
-                                    #[cfg(feature = "mcp")] mcp_manager,
+                                    #[cfg(feature = "mcp")] mcp_ref,
                                 ).await;
                                 let history = crate::agent::runner::convert_history(session);
                                 let runner = agent.as_ref().unwrap().clone().spawn_runner(
@@ -606,6 +638,8 @@ pub async fn run_interactive(
             Some(event) = async {
                 agent_rx.as_mut()?.recv().await
             } => {
+                #[cfg(feature = "mcp")]
+                let mcp_ref = ensure_mcp_manager(&mut mcp_manager, cfg).await;
                 handle_agent_event(
                     event, &mut renderer, session, cfg, cli, context,
                     &mut is_running, &mut agent_rx, &mut agent_line_started,
@@ -615,7 +649,7 @@ pub async fn run_interactive(
                     &permission, &ask_tx, &sandbox,
                     #[cfg(feature = "loop")] &mut loop_state,
                     #[cfg(feature = "git-worktree")] &mut wt_return_path,
-                    #[cfg(feature = "mcp")] mcp_manager,
+                    #[cfg(feature = "mcp")] mcp_ref,
                 ).await?;
                 refresh_display(&mut renderer, &input, session, is_running, loop_label.as_deref(), context.current_prompt_name.as_deref(), perm_mode().as_deref())?;
             }
@@ -644,6 +678,11 @@ pub async fn run_interactive(
         let target = crate::extras::git_worktree::default_branch(&info.main_repo_path)
             .unwrap_or_else(|| "main".to_string());
         let _ = crate::extras::git_worktree::merge(&info, &target);
+    }
+
+    #[cfg(feature = "mcp")]
+    if let Some(mgr) = mcp_manager {
+        mgr.shutdown().await;
     }
 
     Ok(())

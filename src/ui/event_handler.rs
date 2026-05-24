@@ -380,6 +380,10 @@ async fn handle_agent_done(
         }
     }
 
+    // Drop the agent after each response – it will be rebuilt on the next user input.
+    // The git-worktree path below (wt_return_path) may reassign it, which is fine.
+    *agent = None;
+
     #[cfg(feature = "git-worktree")]
     if let Some(main_path) = wt_return_path.take() {
         match std::env::set_current_dir(&main_path) {

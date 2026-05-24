@@ -153,17 +153,6 @@ async fn main() -> anyhow::Result<()> {
         cfg.api_keys.as_ref(),
     )?;
 
-    #[cfg(feature = "mcp")]
-    let mcp_manager = if let Some(servers) = &cfg.mcp_servers {
-        if !cli.resolve_no_tools(&cfg) {
-            Some(extras::mcp::McpClientManager::connect_all(servers).await)
-        } else {
-            None
-        }
-    } else {
-        None
-    };
-
     #[cfg(feature = "acp")]
     if cli.acp_enabled {
         return extras::acp::serve(cli, cfg, context).await;
@@ -197,7 +186,7 @@ async fn main() -> anyhow::Result<()> {
             sandbox.clone(),
             true,
             #[cfg(feature = "mcp")]
-            mcp_manager.as_ref(),
+            None,
         )
         .await;
         let msg = cli.message.join(" ");
@@ -227,7 +216,7 @@ async fn main() -> anyhow::Result<()> {
                 sandbox.clone(),
                 true,
                 #[cfg(feature = "mcp")]
-                mcp_manager.as_ref(),
+                None,
             )
             .await;
             return run_headless_loop(agent, &cli, &cfg, &context).await;
@@ -257,15 +246,8 @@ async fn main() -> anyhow::Result<()> {
             ask_tx,
             ask_rx,
             sandbox,
-            #[cfg(feature = "mcp")]
-            mcp_manager.as_ref(),
         )
         .await?;
-    }
-
-    #[cfg(feature = "mcp")]
-    if let Some(mgr) = mcp_manager {
-        mgr.shutdown().await;
     }
 
     Ok(())
